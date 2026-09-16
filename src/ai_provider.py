@@ -4,12 +4,8 @@ import streamlit as st
 from openai import OpenAI
 
 
-PRIMARY_MODEL = "dots-studio/dots-3-note-preview:free"
-
-FALLBACK_MODELS = [
-    "nvidia/nemotron-3-ultra-550b-a55b:free",
-    "openrouter/free",
-]
+# Current free model with strong availability.
+PRIMARY_MODEL = "inclusionai/ling-3.0-flash-vl:free"
 
 
 class AIProviderError(RuntimeError):
@@ -21,7 +17,7 @@ def get_ai_client() -> OpenAI:
         base_url="https://openrouter.ai/api/v1",
         api_key=st.secrets["OPENROUTER_API_KEY"],
         timeout=45.0,
-        max_retries=0,
+        max_retries=1,
     )
 
 
@@ -39,29 +35,26 @@ def complete(
             temperature=temperature,
             max_tokens=1000,
 
-            # OpenRouter tries these if the primary model
-            # is unavailable / rate-limited.
+            # This task needs a short final answer, not chain-of-thought.
             extra_body={
-                "models": FALLBACK_MODELS,
+                "reasoning": {
+                    "effort": "none"
+                }
             },
         )
 
     except Exception as exc:
-        print("\n=== AI PROVIDER ERROR ===")
-        print(f"Type: {type(exc).__name__}")
-        print(f"Message: {exc}")
-        print("=== END AI PROVIDER ERROR ===\n")
-
         raise AIProviderError(
-            "The AI service is temporarily unavailable."
+            f"The AI service is temporarily unavailable: {exc}"
         ) from exc
 
     message = response.choices[0].message
+
     content = message.content
 
-    if not content:
+    if not content or not content.strip():
         raise AIProviderError(
             "The AI model returned an empty response."
         )
 
-    return content
+    return content.strip()
