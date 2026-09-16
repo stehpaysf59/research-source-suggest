@@ -128,9 +128,21 @@ if start_mode == "✨ Describe my research":
                             "Please choose QS Subjects manually below."
                         )
 
-                except AIProviderError:
+                except AIProviderError as exc:
+                    cause = exc.__cause__
+
+                    st.error("AI provider error — temporary debug mode")
+
+                    if cause is not None:
+                        st.code(
+                            f"{type(cause).__name__}: {cause}"
+                        )
+                    else:
+                        st.code(
+                            f"{type(exc).__name__}: {exc}"
+                        )
+
                     st.warning(
-                        "AI subject suggestion is temporarily unavailable. "
                         "You can still select QS Subjects manually below."
                     )
                 except Exception:
