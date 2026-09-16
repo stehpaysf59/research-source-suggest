@@ -47,6 +47,11 @@ def complete(
         )
 
     except Exception as exc:
+        print("\n=== AI PROVIDER ERROR ===")
+        print(f"Type: {type(exc).__name__}")
+        print(f"Message: {exc}")
+        print("=== END AI PROVIDER ERROR ===\n")
+
         raise AIProviderError(
             "The AI service is temporarily unavailable."
         ) from exc
