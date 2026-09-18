@@ -4,8 +4,17 @@ import streamlit as st
 from openai import OpenAI
 
 
-# Current free model with strong availability.
-PRIMARY_MODEL = "inclusionai/ling-3.0-flash-vl:free"
+# Try these OpenRouter models in order.
+#
+# Important:
+# Free-model availability can change over time.
+# openrouter/free is kept as the final fallback.
+MODELS = [
+    "stealth/union-alpha",
+    "google/gemma-4-31b-it:free",
+    "google/gemma-4-26b-a4b-it:free",
+    "openrouter/free",
+]
 
 
 class AIProviderError(RuntimeError):
@@ -16,8 +25,8 @@ def get_ai_client() -> OpenAI:
     return OpenAI(
         base_url="https://openrouter.ai/api/v1",
         api_key=st.secrets["OPENROUTER_API_KEY"],
-        timeout=45.0,
-        max_retries=1,
+        timeout=20.0,
+        max_retries=0,
     )
 
 
@@ -28,33 +37,45 @@ def complete(
 
     client = get_ai_client()
 
-    try:
-        response = client.chat.completions.create(
-            model=PRIMARY_MODEL,
-            messages=messages,
-            temperature=temperature,
-            max_tokens=1000,
+    errors = []
 
-            # This task needs a short final answer, not chain-of-thought.
-            extra_body={
-                "reasoning": {
-                    "effort": "none"
-                }
-            },
-        )
+    for model in MODELS:
 
-    except Exception as exc:
-        raise AIProviderError(
-            f"The AI service is temporarily unavailable: {exc}"
-        ) from exc
+        try:
+            response = client.chat.completions.create(
+                model=model,
+                messages=messages,
+                temperature=temperature,
+                max_tokens=1200,
+            )
 
-    message = response.choices[0].message
+            if not response.choices:
+                errors.append(
+                    f"{model}: no choices returned"
+                )
+                continue
 
-    content = message.content
+            content = response.choices[0].message.content
 
-    if not content or not content.strip():
-        raise AIProviderError(
-            "The AI model returned an empty response."
-        )
+            if content and content.strip():
+                return content.strip()
 
-    return content.strip()
+            errors.append(
+                f"{model}: empty response"
+            )
+
+        except Exception as exc:
+
+            errors.append(
+                f"{model}: "
+                f"{type(exc).__name__}: {exc}"
+            )
+
+            # Immediately move to the next model.
+            continue
+
+    # All models failed.
+    raise AIProviderError(
+        "All OpenRouter AI models are currently unavailable. "
+        + " | ".join(errors)
+    )
